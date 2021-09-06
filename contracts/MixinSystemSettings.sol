@@ -30,6 +30,9 @@ contract MixinSystemSettings is MixinResolver {
     bytes32 internal constant SETTING_ETHER_WRAPPER_MAX_ETH = "etherWrapperMaxETH";
     bytes32 internal constant SETTING_ETHER_WRAPPER_MINT_FEE_RATE = "etherWrapperMintFeeRate";
     bytes32 internal constant SETTING_ETHER_WRAPPER_BURN_FEE_RATE = "etherWrapperBurnFeeRate";
+    bytes32 internal constant SETTING_ERC20_WRAPPER_MAX_TOKENS = "erc20WrapperBurnFeeRate";
+    bytes32 internal constant SETTING_ERC20_WRAPPER_MINT_FEE_RATE = "erc20WrapperBurnFeeRate";
+    bytes32 internal constant SETTING_ERC20_WRAPPER_BURN_FEE_RATE = "erc20WrapperBurnFeeRate";
 
     bytes32 internal constant CONTRACT_FLEXIBLESTORAGE = "FlexibleStorage";
 
@@ -137,5 +140,29 @@ contract MixinSystemSettings is MixinResolver {
 
     function getEtherWrapperBurnFeeRate() internal view returns (uint) {
         return flexibleStorage().getUIntValue(SETTING_CONTRACT_NAME, SETTING_ETHER_WRAPPER_BURN_FEE_RATE);
+    }
+
+    function getERC20WrapperMaxTokens(bytes32 synthName) internal view returns (uint) {
+        return
+            flexibleStorage().getUIntValue(
+                SETTING_CONTRACT_NAME,
+                keccak256(abi.encodePacked(SETTING_ERC20_WRAPPER_MAX_TOKENS, synthName))
+            );
+    }
+
+    function getERC20WrapperMintFeeRate(bytes32 synthName) internal view returns (uint) {
+        return
+            flexibleStorage().getUIntValue(
+                SETTING_CONTRACT_NAME,
+                keccak256(abi.encodePacked(SETTING_ERC20_WRAPPER_MINT_FEE_RATE, synthName))
+            );
+    }
+
+    function getERC20WrapperBurnFeeRate(bytes32 synthName) internal view returns (uint) {
+        return
+            flexibleStorage().getUIntValue(
+                SETTING_CONTRACT_NAME,
+                keccak256(abi.encodePacked(SETTING_ERC20_WRAPPER_BURN_FEE_RATE, synthName))
+            );
     }
 }
