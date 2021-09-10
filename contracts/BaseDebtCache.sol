@@ -17,6 +17,8 @@ import "./interfaces/ISystemStatus.sol";
 import "./interfaces/IERC20.sol";
 import "./interfaces/ICollateralManager.sol";
 import "./interfaces/IEtherWrapper.sol";
+import "./interfaces/IWrapperFactory.sol";
+import "./interfaces/IERC20Wrapper.sol";
 
 // https://docs.synthetix.io/contracts/source/contracts/debtcache
 contract BaseDebtCache is Owned, MixinSystemSettings, IDebtCache {
@@ -27,6 +29,7 @@ contract BaseDebtCache is Owned, MixinSystemSettings, IDebtCache {
     mapping(bytes32 => uint) internal _cachedSynthDebt;
     uint internal _cacheTimestamp;
     bool internal _cacheInvalid = true;
+    uint internal _cachedTotalNonSnxBackedDebt;
 
     /* ========== ENCODED NAMES ========== */
 
@@ -41,6 +44,7 @@ contract BaseDebtCache is Owned, MixinSystemSettings, IDebtCache {
     bytes32 private constant CONTRACT_SYSTEMSTATUS = "SystemStatus";
     bytes32 private constant CONTRACT_COLLATERALMANAGER = "CollateralManager";
     bytes32 private constant CONTRACT_ETHER_WRAPPER = "EtherWrapper";
+    bytes32 private constant CONTRACT_WRAPPER_FACTORY = "WrapperFactory";
 
     constructor(address _owner, address _resolver) public Owned(_owner) MixinSystemSettings(_resolver) {}
 
@@ -55,6 +59,7 @@ contract BaseDebtCache is Owned, MixinSystemSettings, IDebtCache {
         newAddresses[3] = CONTRACT_SYSTEMSTATUS;
         newAddresses[4] = CONTRACT_COLLATERALMANAGER;
         newAddresses[5] = CONTRACT_ETHER_WRAPPER;
+        newAddresses[6] = CONTRACT_WRAPPER_FACTORY;
         addresses = combineArrays(existingAddresses, newAddresses);
     }
 
@@ -82,12 +87,20 @@ contract BaseDebtCache is Owned, MixinSystemSettings, IDebtCache {
         return IEtherWrapper(requireAndGetAddress(CONTRACT_ETHER_WRAPPER));
     }
 
+    function wrapperFactory() internal view returns (IWrapperFactory) {
+        return IWrapperFactory(requireAndGetAddress(CONTRACT_WRAPPER_FACTORY));
+    }
+
     function debtSnapshotStaleTime() external view returns (uint) {
         return getDebtSnapshotStaleTime();
     }
 
     function cachedDebt() external view returns (uint) {
         return _cachedDebt;
+    }
+
+    function cachedTotalNonSnxBackedDebt() external view returns (uint) {
+        return _cachedTotalNonSnxBackedDebt;
     }
 
     function cachedSynthDebt(bytes32 currencyKey) external view returns (uint) {
@@ -189,6 +202,19 @@ contract BaseDebtCache is Owned, MixinSystemSettings, IDebtCache {
         // Subtract sETH and sUSD issued by EtherWrapper.
         excludedDebt = excludedDebt.add(etherWrapper().totalIssuedSynths());
 
+        // 3. WrapperFactory.
+        // TODO: Exclude sETH here unless the plan is to move the existing EtherWrapper to the factory
+        bytes32[] memory currencyKeys = issuer().availableCurrencyKeys();
+        uint numCurrencies = currencyKeys.length;
+        for (uint i; i < numCurrencies; i++) {
+            address factoryAddress = wrapperFactory().erc20Wrappers[currencyKeys[i]];
+            if (bytes(factoryAddress).length) {
+                erc20Wrapper = IERC20Wrapper(factoryAddress);
+                uint value = erc20Wrapper.totalIssuedSynths();
+                excludedDebt = excludedDebt.add(value);
+            }
+        }
+
         return (excludedDebt, isInvalid);
     }
 
@@ -221,11 +247,12 @@ contract BaseDebtCache is Owned, MixinSystemSettings, IDebtCache {
             uint debt,
             uint timestamp,
             bool isInvalid,
-            bool isStale
+            bool isStale,
+            uint totalNonSnxBackedDebt
         )
     {
         uint time = _cacheTimestamp;
-        return (_cachedDebt, time, _cacheInvalid, _cacheStale(time));
+        return (_cachedDebt, time, _cacheInvalid, _cacheStale(time), _cachedTotalNonSnxBackedDebt);
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */

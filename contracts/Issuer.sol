@@ -183,16 +183,13 @@ contract Issuer is Owned, MixinSystemSettings, IIssuer {
         view
         returns (uint totalIssued, bool anyRateIsInvalid)
     {
-        (uint debt, , bool cacheIsInvalid, bool cacheIsStale) = debtCache().cacheInfo();
+        (uint debt, , bool cacheIsInvalid, bool cacheIsStale, uint totalNonSnxBackedDebt) = debtCache().cacheInfo();
         anyRateIsInvalid = cacheIsInvalid || cacheIsStale;
 
         IExchangeRates exRates = exchangeRates();
 
-        // Add total issued synths from non snx collateral back into the total if not excluded
         if (!excludeCollateral) {
-            (uint nonSnxDebt, bool invalid) = debtCache().totalNonSnxBackedDebt();
-            debt = debt.add(nonSnxDebt);
-            anyRateIsInvalid = anyRateIsInvalid || invalid;
+            debt = debt.add(totalNonSnxBackedDebt);
         }
 
         if (currencyKey == sUSD) {
